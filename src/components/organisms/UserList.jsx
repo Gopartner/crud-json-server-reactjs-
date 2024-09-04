@@ -1,96 +1,142 @@
+// src/components/organisms/UserList.jsx
 import React, { useState, useEffect } from 'react';
+import ConfirmDialog from '../molecules/ConfirmDialog';
 import UserForm from '../molecules/UserForm';
-import Button from '../atoms/Button';
 
-const UserList = () => {
+function UserList() {
   const [users, setUsers] = useState([]);
-  const [editingUser, setEditingUser] = useState(null);
-  const [showForm, setShowForm] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
+    async function fetchUsers() {
+      try {
+        const response = await fetch('http://localhost:5000/users');
+        const data = await response.json();
+        setUsers(data);
+      } catch (error) {
+        console.error('Error fetching users:', error);
+      }
+    }
     fetchUsers();
   }, []);
 
-  const fetchUsers = async () => {
+  const handleDelete = (userId) => {
+    setUserToDelete(userId);
+    setShowConfirmDialog(true);
+  };
+
+  const confirmDelete = async () => {
     try {
-      const response = await fetch('http://localhost:5000/users');
-      const data = await response.json();
-      setUsers(data);
+      await fetch(`http://localhost:5000/users/${userToDelete}`, {
+        method: 'DELETE',
+      });
+      setUsers(users.filter((user) => user.id !== userToDelete));
     } catch (error) {
-      console.error('Error fetching users:', error);
+      console.error('Error deleting user:', error);
+    } finally {
+      setShowConfirmDialog(false);
+      setUserToDelete(null);
     }
   };
 
+  const cancelDelete = () => {
+    setShowConfirmDialog(false);
+    setUserToDelete(null);
+  };
+
   const handleAddUser = () => {
-    setEditingUser(null);
-    setShowForm(true);
+    setCurrentUser(null);
+    setShowUserForm(true);
   };
 
   const handleEditUser = (user) => {
-    setEditingUser(user);
-    setShowForm(true);
+    setCurrentUser(user);
+    setShowUserForm(true);
   };
 
-  const handleSubmit = async (user) => {
+  const handleUserFormSubmit = async (user) => {
     try {
-      if (editingUser) {
-        await fetch(`http://localhost:5000/users/${editingUser.id}`, {
+      if (user.id) {
+        await fetch(`http://localhost:5000/users/${user.id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(user),
+          headers: { 'Content-Type': 'application/json' },
         });
       } else {
         await fetch('http://localhost:5000/users', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(user),
+          headers: { 'Content-Type': 'application/json' },
         });
       }
-      setShowForm(false);
-      fetchUsers();
+      setShowUserForm(false);
+      setCurrentUser(null);
+      // Refresh user list
+      const response = await fetch('http://localhost:5000/users');
+      const data = await response.json();
+      setUsers(data);
     } catch (error) {
       console.error('Error saving user:', error);
     }
   };
 
-  const handleDeleteUser = async (id) => {
-    try {
-      await fetch(`http://localhost:5000/users/${id}`, {
-        method: 'DELETE',
-      });
-      fetchUsers();
-    } catch (error) {
-      console.error('Error deleting user:', error);
-    }
+  const cancelUserForm = () => {
+    setShowUserForm(false);
+    setCurrentUser(null);
   };
 
   return (
     <div className="p-4">
-      <Button onClick={handleAddUser}>Add User</Button>
-      {showForm && (
-        <UserForm
-          user={editingUser}
-          onSubmit={handleSubmit}
-          onCancel={() => setShowForm(false)}
-        />
-      )}
-      <ul className="mt-4 space-y-2">
-        {users.map(user => (
-          <li key={user.id} className="border p-4 rounded flex justify-between items-center">
+      <header className="mb-4 flex justify-between items-center">
+        <h1 className="text-2xl font-bold">User List</h1>
+        <button
+          onClick={handleAddUser}
+          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+        >
+          Add User
+        </button>
+      </header>
+      <ul>
+        {users.map((user) => (
+          <li key={user.id} className="flex justify-between items-center mb-2 p-2 border rounded">
+            <span>{user.name}</span>
             <div>
-              <div>Name: {user.name}</div>
-              <div>Email: {user.email}</div>
-            </div>
-            <div className="flex space-x-2">
-              <Button onClick={() => handleEditUser(user)}>Edit</Button>
-              <Button onClick={() => handleDeleteUser(user.id)}>Delete</Button>
+              <button
+                onClick={() => handleEditUser(user)}
+                className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 mr-2"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => handleDelete(user.id)}
+                className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+              >
+                Delete
+              </button>
             </div>
           </li>
         ))}
       </ul>
+      {showConfirmDialog && (
+        <ConfirmDialog
+          isOpen={showConfirmDialog}
+          onConfirm={confirmDelete}
+          onCancel={cancelDelete}
+        />
+      )}
+      {showUserForm && (
+        <UserForm
+          user={currentUser}
+          onSubmit={handleUserFormSubmit}
+          onCancel={cancelUserForm}
+        />
+      )}
     </div>
   );
-};
+}
 
 export default UserList;
 
